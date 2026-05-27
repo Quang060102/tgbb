@@ -1,0 +1,1431 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Hệ Thống Quản Lý Nhà Hàng - Bia Vườn Nhà Bi</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght=300;400;500;600;700&display=swap');
+    body { font-family: 'Inter', sans-serif; touch-action: pan-y; }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+    @media (max-width: 768px) {
+      aside { display: none !important; }
+      .view-section { display: none !important; }
+      #view-pos { display: block !important; height: 100vh !important; overflow-y: auto !important; padding-bottom: 160px !important; }
+      header button[onclick="resetDataSystem()"], #clock { display: none !important; }
+      header { padding: 0.5rem 1rem !important; height: auto !important; }
+      header h2 { font-size: 1.1rem !important; width: 100%; text-align: center; font-weight: 800; }
+      header #toggle-sound-btn { width: 100%; justify-content: center; margin-top: 0.25rem; }
+      #pos-table-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 0.75rem !important; padding: 0.5rem !important; }
+      #pos-table-grid > div { height: 90px !important; padding: 0.85rem !important; border-radius: 1.25rem !important; }
+      #pos-table-grid span { font-size: 1rem !important; font-weight: 800; }
+
+      #view-pos > div.bg-white.rounded-2xl.border.shadow-md {
+        display: none; 
+        position: fixed !important;
+        inset: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        max-height: 100vh !important;
+        z-index: 100 !important;
+        margin-top: 0 !important;
+        border-radius: 0 !important;
+        flex-direction: column !important;
+        transform: translateX(100%);
+        transition: transform 0.25s ease-out !important;
+      }
+      #view-pos > div.bg-white.rounded-2xl.border.shadow-md.show-mobile-fullscreen {
+        display: flex !important;
+        transform: translateX(0) !important;
+      }
+      #bill-items-container { flex: 1 1 0% !important; max-height: none !important; overflow-y: auto !important; padding: 1.25rem !important; }
+      #btn-trigger-add-dish { py: 0.75rem !important; px: 1.25rem !important; font-size: 1rem !important; border-radius: 0.75rem !important; }
+      #btn-print-bill, #btn-checkout-bill { py: 1.1rem !important; font-size: 1.1rem !important; font-weight: 800 !important; border-radius: 1rem !important; }
+      main { height: 100vh !important; overflow: hidden !important; }
+      main > div.flex-1 { padding: 0.25rem !important; }
+     
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 flex h-screen overflow-hidden">
+
+  <aside class="w-64 bg-slate-900 text-white flex flex-col justify-between z-10 shadow-xl">
+    <div>
+      <div class="p-5 border-b border-slate-800 flex items-center space-x-3">
+        <div class="bg-amber-500 p-2 rounded-lg text-slate-900">
+          <i data-lucide="beer" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h1 class="font-bold text-lg leading-tight text-amber-400">Nhà Bi POS</h1>
+          <span class="text-xs text-slate-400 font-medium">Hệ thống quản lý v2026</span>
+        </div>
+      </div>
+      <nav class="p-4 space-y-1">
+        <button onclick="switchTab('dashboard')" id="btn-dashboard" class="nav-btn w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition font-medium text-sm bg-amber-50 text-slate-950 shadow-lg shadow-amber-500/10">
+          <i data-lucide="layout-dashboard" class="w-5 h-5"></i><span>Bảng Điều Khiển</span>
+        </button>
+        <button onclick="switchTab('pos')" id="btn-pos" class="nav-btn w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition font-medium text-sm text-slate-400 hover:bg-slate-800 hover:text-white">
+          <i data-lucide="cooking-pot" class="w-5 h-5"></i><span>Sơ Đồ Bàn & Gọi Món</span>
+        </button>
+        <button onclick="switchTab('kitchen')" id="btn-kitchen" class="nav-btn w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition font-medium text-sm text-slate-400 hover:bg-slate-800 hover:text-white relative">
+          <i data-lucide="chef-hat" class="w-5 h-5"></i><span>Điều Phối Nhà Bếp</span>
+          <span id="kitchen-badge" class="absolute right-3 bg-rose-500 text-white text-xxs px-2 py-0.5 rounded-full hidden">0</span>
+        </button>
+        <button onclick="switchTab('menu-mgr')" id="btn-menu-mgr" class="nav-btn w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition font-medium text-sm text-slate-400 hover:bg-slate-800 hover:text-white">
+          <i data-lucide="utensils-crossed" class="w-5 h-5"></i><span>Quản Lý Thực Đơn</span>
+        </button>
+        <button onclick="switchTab('inventory-mgr')" id="btn-inventory-mgr" class="nav-btn w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition font-medium text-sm text-slate-400 hover:bg-slate-800 hover:text-white">
+          <i data-lucide="boxes" class="w-5 h-5"></i><span>Quản Lý Kho</span>
+        </button>
+        <button onclick="switchTab('simulator')" id="btn-simulator" class="nav-btn w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition font-medium text-sm text-slate-400 hover:bg-slate-800 hover:text-white border border-dashed border-slate-700/60 mt-4">
+          <i data-lucide="qr-code" class="w-5 h-5 text-amber-500"></i><span class="text-amber-400">Giả Lập Quét Mã</span>
+        </button>
+      </nav>
+    </div>
+    <div class="p-4 border-t border-slate-800 text-center text-xs text-slate-500">
+      &copy; 2026 Bia Vườn Nhà Bi
+    </div>
+  </aside>
+
+  <main class="flex-1 flex flex-col h-full overflow-hidden">
+    <header class="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-6 shrink-0">
+      <div class="flex items-center space-x-2">
+        <h2 id="header-title" class="text-xl font-bold text-slate-800">Bảng Điều Khiển</h2>
+      </div>
+      <div class="flex items-center space-x-4">
+        <button id="toggle-sound-btn" onclick="toggleSoundSystem()" class="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow transition-all duration-200">
+          <i data-lucide="volume-2" class="w-4 h-4"></i>
+          <span id="sound-status-text">Âm thanh: BẬT</span>
+        </button>
+        <div id="clock" class="text-sm font-semibold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-lg"></div>
+        <button onclick="resetDataSystem()" class="text-xs font-medium text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-lg transition flex items-center space-x-1">
+          <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i><span>Xóa/Cài lại dữ liệu</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="flex-1 p-6 overflow-y-auto custom-scrollbar bg-slate-50">
+      
+      <section id="view-dashboard" class="space-y-6 view-section">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-5">
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+              <p class="text-sm font-medium text-slate-500">Doanh Thu Hôm Nay</p>
+              <h3 id="stat-revenue" class="text-2xl font-bold mt-1 text-slate-900">0đ</h3>
+            </div>
+            <div class="bg-emerald-50 text-emerald-600 p-3 rounded-xl"><i data-lucide="dollar-sign"></i></div>
+          </div>
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+              <p class="text-sm font-medium text-slate-500">Số Đơn Hoàn Thành</p>
+              <h3 id="stat-orders" class="text-2xl font-bold mt-1 text-slate-900">0</h3>
+            </div>
+            <div class="bg-blue-50 text-blue-600 p-3 rounded-xl"><i data-lucide="receipt"></i></div>
+          </div>
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+              <p class="text-sm font-medium text-slate-500">Bàn Đang Hoạt Động</p>
+              <h3 id="stat-active-tables" class="text-2xl font-bold mt-1 text-slate-900">0/20</h3>
+            </div>
+            <div class="bg-amber-50 text-amber-600 p-3 rounded-xl"><i data-lucide="users"></i></div>
+          </div>
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+              <p class="text-sm font-medium text-slate-500">Món Chờ Chế Biến</p>
+              <h3 id="stat-pending-cooking" class="text-2xl font-bold mt-1 text-slate-900">0</h3>
+            </div>
+            <div class="bg-rose-50 text-rose-600 p-3 rounded-xl"><i data-lucide="clock"></i></div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm lg:col-span-2">
+            <h4 class="font-bold text-slate-800 mb-4 flex items-center gap-2"><i data-lucide="bar-chart-3" class="text-amber-500 w-5 h-5"></i>Phân Tích Doanh Thu Nhóm Món</h4>
+            <div class="h-64 flex items-center justify-center">
+              <canvas id="categoryChart"></canvas>
+            </div>
+          </div>
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+            <h4 class="font-bold text-slate-800 mb-4 flex items-center gap-2"><i data-lucide="award" class="text-amber-500 w-5 h-5"></i>Món Bán Chạy Nhất</h4>
+            <div id="top-items-list" class="space-y-3 max-h-64 overflow-y-auto custom-scrollbar pr-1">
+              <p class="text-sm text-slate-400 text-center py-8">Chưa có dữ liệu bán hàng</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="p-5 border-b border-slate-100 flex justify-between items-center">
+            <h4 class="font-bold text-slate-800 flex items-center gap-2"><i data-lucide="history" class="text-slate-500 w-5 h-5"></i>Lịch Sử Hóa Đơn Gần Đây</h4>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-slate-50 text-slate-500 text-xs font-semibold uppercase tracking-wider border-b border-slate-200">
+                  <th class="px-6 py-3">Mã Hóa Đơn</th>
+                  <th class="px-6 py-3">Bàn</th>
+                  <th class="px-6 py-3">Thời gian</th>
+                  <th class="px-6 py-3 text-center">Số lượng món</th>
+                  <th class="px-6 py-3 text-right">Tổng thanh toán</th>
+                </tr>
+              </thead>
+              <tbody id="recent-invoice-table" class="divide-y divide-slate-100 text-sm"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-pos" class="hidden grid grid-cols-1 xl:grid-cols-3 gap-6 h-full view-section">
+        <div class="xl:col-span-2 space-y-4 flex flex-col h-full">
+          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-wrap gap-2 items-center justify-between shrink-0">
+            <div class="flex items-center space-x-4">
+              <span class="flex items-center text-xs font-medium text-slate-500"><span class="w-3 h-3 bg-slate-100 border border-slate-300 rounded-md mr-1.5"></span>Trống</span>
+              <span class="flex items-center text-xs font-medium text-slate-500"><span class="w-3 h-3 bg-amber-500 rounded-md mr-1.5"></span>Đang ngồi</span>
+              <span class="flex items-center text-xs font-medium text-slate-500"><span class="w-3 h-3 bg-emerald-500 rounded-md mr-1.5"></span>Đang chọn</span>
+            </div>
+            <div id="selected-table-badge" class="text-sm font-bold text-amber-600 bg-amber-50 px-3 py-1 rounded-lg">
+              Vui lòng chọn bàn thao tác
+            </div>
+          </div>
+          <div id="pos-table-grid" class="grid grid-cols-2 sm:grid-cols-4 gap-4 overflow-y-auto custom-scrollbar flex-1 pr-1"></div>
+        </div>
+
+        <div id="mobile-swipe-panel" class="bg-white rounded-2xl border border-slate-200 shadow-md flex flex-col h-full overflow-hidden">
+          <div class="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center shrink-0">
+            <div>
+              <h3 id="bill-table-heading" class="font-bold text-slate-800 text-lg">Hóa Đơn Chi Tiết</h3>
+              <p id="bill-order-id" class="text-xs text-slate-400">Chưa mở bàn</p>
+            </div>
+            <button onclick="openAddItemsModal()" id="btn-trigger-add-dish" disabled class="disabled:opacity-50 disabled:cursor-not-allowed bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold text-xs px-3 py-2 rounded-xl flex items-center space-x-1 shadow transition">
+              <i data-lucide="plus" class="w-4 h-4"></i><span>Thêm Món</span>
+            </button>
+          </div>
+
+          <div id="bill-items-container" class="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-3 bg-slate-50/50">
+            <div class="text-center py-16 text-slate-400 flex flex-col items-center justify-center space-y-2">
+              <i data-lucide="armchair" class="w-10 h-10 text-slate-300"></i>
+              <p class="text-sm">Chọn một bàn bất kỳ bên trái để kiểm tra chi tiết hoặc gọi món mới.</p>
+            </div>
+          </div>
+
+          <div class="p-4 border-t border-slate-200 space-y-3 bg-white shrink-0">
+            <div class="space-y-1.5 text-sm">
+              <div class="flex justify-between text-slate-500">
+                <span>Số lượng phần ăn:</span>
+                <span id="bill-summary-qty" class="font-medium text-slate-800">0</span>
+              </div>
+              <div class="flex justify-between items-baseline pt-1 border-t border-dashed border-slate-100">
+                <span class="font-bold text-slate-800 text-base">Tổng tạm tính:</span>
+                <span id="bill-summary-total" class="font-black text-xl text-amber-600">0đ</span>
+              </div>
+              <div class="md:hidden text-center text-[10px] font-bold text-slate-400 pt-1">
+                👉 Vuốt lướt sang ngang trái/phải để quay lại sơ đồ bàn 👈
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 pt-1">
+              <button onclick="printTemporaryBill()" id="btn-print-bill" disabled class="disabled:opacity-40 disabled:cursor-not-allowed border border-slate-200 text-slate-700 bg-slate-50 hover:bg-slate-100 font-medium text-sm py-3 rounded-xl transition flex items-center justify-center space-x-1">
+                <i data-lucide="printer" class="w-4 h-4"></i><span>Tạm tính</span>
+              </button>
+              <button onclick="checkoutActiveTable()" id="btn-checkout-bill" disabled class="disabled:opacity-40 disabled:cursor-not-allowed bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm py-3 rounded-xl shadow-lg shadow-emerald-600/10 transition flex items-center justify-center space-x-1">
+                <i data-lucide="check-square" class="w-4 h-4"></i><span>Thanh Toán</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-kitchen" class="hidden space-y-6 view-section">
+        <div class="flex border-b border-slate-200 bg-white p-2 rounded-xl border items-center justify-between">
+          <div class="flex space-x-2">
+            <button onclick="switchKitchenMode('by-order')" id="ktab-by-order" class="px-4 py-2 text-sm font-semibold rounded-lg bg-slate-900 text-white shadow">Xem Theo Hóa Đơn</button>
+            <button onclick="switchKitchenMode('by-dish')" id="ktab-by-dish" class="px-4 py-2 text-sm font-medium rounded-lg text-slate-600 hover:bg-slate-100">Gom Nhóm Theo Món</button>
+          </div>
+          <span class="text-xs font-semibold text-slate-400 px-3">Cập nhật liên tục từ khách hàng</span>
+        </div>
+        <div id="kitchen-container-orders" class="grid grid-cols-1 md:grid-cols-3 gap-5"></div>
+        <div id="kitchen-container-dishes" class="hidden bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-slate-50 text-slate-500 text-xs font-semibold uppercase tracking-wider border-b border-slate-200">
+                  <th class="px-6 py-4">Tên món ăn</th>
+                  <th class="px-6 py-4 text-center">Tổng số lượng cần làm</th>
+                  <th class="px-6 py-4">Chi tiết phân bổ theo bàn</th>
+                  <th class="px-6 py-4 text-right">Thao tác hàng loạt</th>
+                </tr>
+              </thead>
+              <tbody id="kitchen-dish-table-rows" class="divide-y divide-slate-100 text-sm"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-menu-mgr" class="hidden bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden view-section">
+        <div class="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap gap-3 items-center justify-between">
+          <div class="flex items-center space-x-2 w-full sm:w-72">
+            <div class="relative w-full">
+              <input type="text" id="menu-search-input" oninput="filterMenuManagement()" class="w-full pl-9 pr-4 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:border-amber-500" placeholder="Tìm kiếm món ăn...">
+              <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-3"></i>
+            </div>
+          </div>
+          <div class="flex space-x-2">
+            <select id="menu-filter-category" onchange="filterMenuManagement()" class="py-2 px-3 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none">
+              <option value="all">Tất cả danh mục</option>
+              <option value="khai_vi">Khai vị</option>
+              <option value="nuong">Nướng</option>
+              <option value="mon_xao">Xào</option>
+              <option value="mon_chien">Chiên</option>
+              <option value="mon_lau">Lẩu</option>
+              <option value="com_my">Cơm mỳ</option>
+              <option value="do_uong">Đồ uống</option>
+            </select>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50 text-slate-500 text-xs font-semibold uppercase tracking-wider border-b border-slate-200">
+                <th class="px-6 py-3.5">Món ăn</th>
+                <th class="px-6 py-3.5">Danh mục</th>
+                <th class="px-6 py-3.5">Đơn giá</th>
+                <th class="px-6 py-3.5 text-center">Trạng thái bếp</th>
+                <th class="px-6 py-3.5 text-right">Chỉnh sửa nhanh</th>
+              </tr>
+            </thead>
+            <tbody id="menu-mgr-table-rows" class="divide-y divide-slate-100 text-sm"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="view-simulator" class="hidden grid grid-cols-1 lg:grid-cols-3 gap-6 view-section">
+        <div class="lg:col-span-1 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm h-fit space-y-4">
+          <h3 class="font-bold text-slate-800 text-base flex items-center gap-1.5"><i data-lucide="help-circle" class="text-amber-500 w-5 h-5"></i>Giao diện này là gì?</h3>
+          <p class="text-xs text-slate-500 leading-relaxed">Đây là bộ lập trình mô phỏng hành vi của Khách Hàng khi quét mã QR tại bàn từ file thiết kế <code>menu3.html</code>.</p>
+          <div class="pt-2 border-t border-slate-100">
+            <label class="block text-xs font-bold text-slate-600 uppercase mb-2">1. Chọn Vị Trí Bàn Giả Lập</label>
+            <select id="sim-table-select" class="w-full p-2.5 text-sm border border-slate-300 rounded-xl bg-slate-50 font-medium focus:outline-none"></select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 uppercase mb-1">2. Ghi chú của khách</label>
+            <textarea id="sim-note-input" rows="2" class="w-full text-xs p-2.5 border border-slate-300 rounded-xl focus:outline-none bg-slate-50" placeholder="Ghi chú thêm món..."></textarea>
+          </div>
+          <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+            <div class="flex justify-between text-xs text-slate-500">
+              <span>Đã chọn: <strong id="sim-summary-count" class="text-slate-800">0 món</strong></span>
+              <span>Tạm tính: <strong id="sim-summary-money" class="text-amber-600">0đ</strong></span>
+            </div>
+            <button onclick="submitSimulatedOrder()" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm py-3 rounded-xl transition flex items-center justify-center space-x-1.5 shadow">
+              <i data-lucide="send" class="w-4 h-4 text-amber-400"></i><span>Gửi Đơn Vào Hệ Thống POS</span>
+            </button>
+          </div>
+        </div>
+        <div class="lg:col-span-2 bg-slate-900 rounded-2xl border border-slate-800 p-4 flex flex-col h-[75vh]">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0">
+            <h4 class="text-amber-400 font-bold text-sm uppercase tracking-wider">Thực đơn đặt đồ ăn của khách</h4>
+          </div>
+          <div id="sim-menu-container" class="flex-1 overflow-y-auto custom-scrollbar pt-3 space-y-5 pr-1"></div>
+        </div>
+      </section>
+
+      <section id="view-inventory-mgr" class="hidden bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden view-section">
+        <div class="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+          <h4 class="font-bold text-slate-800 flex items-center gap-1.5"><i data-lucide="warehouse" class="text-amber-500 w-5 h-5"></i>Tồn Kho Nguyên Liệu Thực Tế</h4>
+          <span class="text-xs text-slate-500">Tự động trừ kho ngay khi bấm thanh toán hóa đơn</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50 text-slate-500 text-xs font-semibold uppercase tracking-wider border-b border-slate-200">
+                <th class="px-6 py-3.5">Mã vật tư</th>
+                <th class="px-6 py-3.5">Tên nguyên liệu</th>
+                <th class="px-6 py-3.5 text-center">Số lượng tồn</th>
+                <th class="px-6 py-3.5">Đơn vị</th>
+                <th class="px-6 py-3.5">Trạng thái kho</th>
+                <th class="px-6 py-3.5 text-right">Điều chỉnh nhanh kho</th>
+              </tr>
+            </thead>
+            <tbody id="inventory-table-rows" class="divide-y divide-slate-100 text-sm"></tbody>
+          </table>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+<!-- 🍻 BONG BÓNG GỌI BIA NHANH KIỂU MESSENGER (CHỈ HIỆN KHI CHỌN BÀN TRÊN MOBILE/IPAD) -->
+  <div id="mobile-beer-quickbar" style="display: none; position: fixed; flex-direction: row; align-items: center; z-index: 99; border-radius: 9999px;" class="bg-slate-900/95 backdrop-blur-md border border-slate-700/60 p-2 space-x-2 shadow-[0_8px_30px_rgba(0,0,0,0.5)] transition-all duration-200">
+    <div class="text-white text-center px-2 border-r border-slate-700 select-none">
+      <div class="text-[11px] font-black text-amber-400 capitalize leading-tight" id="quickbar-selected-table">BÀN?</div>
+      <div class="text-[8px] text-slate-400 uppercase tracking-wider font-extrabold">Gọi nhanh</div>
+    </div>
+    
+    <button type="button" onclick="submitQuickBeerFromMobile('bia_hoi', 'Bia hơi')" class="w-10 h-10 bg-gradient-to-b from-amber-400 to-amber-500 active:from-amber-600 rounded-full flex items-center justify-center text-lg shadow-md active:scale-90 transition-all select-none">
+      🍺
+    </button>
+    
+    <button type="button" onclick="submitQuickBeerFromMobile('bia_lon', 'Bia lon')" class="w-10 h-10 bg-slate-800 border border-slate-700 rounded-full flex items-center justify-center text-lg active:scale-90 transition-all select-none text-white">
+      🥫
+    </button>
+    
+    <button type="button" onclick="submitQuickBeerFromMobile('bia_chai', 'Bia chai')" class="w-10 h-10 bg-slate-800 border border-slate-700 rounded-full flex items-center justify-center text-lg active:scale-90 transition-all select-none text-white">
+      🍾
+    </button>
+    
+    <button type="button" onclick="closeBeerBubble()" class="w-6 h-6 text-slate-400 hover:text-white font-bold text-sm rounded-full flex items-center justify-center select-none bg-slate-800">
+      &times;
+    </button>
+  </div>
+
+  <div id="add-dish-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center hidden z-[110] p-4">
+    <div class="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden">
+      <div class="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center shrink-0">
+        <h3 class="font-bold text-slate-800">Thêm Món Ăn Cho <span id="modal-table-title" class="text-amber-600"></span></h3>
+        <button onclick="closeAddItemsModal()" class="text-slate-400 hover:text-slate-600 text-2xl font-semibold">&times;</button>
+      </div>
+      <div class="p-4 bg-slate-100/60 border-b border-slate-200 shrink-0">
+        <input type="text" id="modal-search-input" oninput="renderModalItems()" class="w-full px-4 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none" placeholder="Tìm kiếm nhanh tên món ăn cần thêm...">
+      </div>
+      <div id="modal-items-list" class="flex-1 overflow-y-auto custom-scrollbar p-4 grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50"></div>
+      <div class="p-4 border-t border-slate-200 flex justify-end space-x-2 shrink-0 bg-white">
+        <button onclick="closeAddItemsModal()" class="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 text-sm font-medium">Đóng lại</button>
+        <button onclick="saveModalAddedItems()" class="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-sm shadow">Xác nhận gọi món</button>
+      </div>
+    </div>
+  </div>
+
+ <script>
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwu6O2OyWvvhICHJHzj8ROw-aWWtSIlbCpIlQB71PrwQ-LHWEJy4htDnb_CraKD-PCV/exec";
+    const BANK_CONFIG = { BANK_ID: "VIB", ACCOUNT_NO: "212668866", ACCOUNT_NAME: "NGUYEN VAN MINH" };
+
+    const TABLE_NAMES = [
+      "đào tiên giữa", "đào tiên trong", "đào tiên ngoài", "lộc vừng giữa",
+      "lộc vừng trái", "lộc vừng phải", "lioa", "tranh", "quạt treo",
+      "bơm trong", "bơm ngoài", "xe nướng trong", "xe nướng ngoài",
+      "cột đèn ngoài", "cột đèn trong", "cây đào", "bàn trong 1",
+      "bàn trong 2", "bàn thêm", "Mang về"
+    ];
+
+    const DEFAULT_MENU = [
+      {
+        id: "khai_vi", name: "Khai vị",
+        items: [
+          { id: "dau_ran", name: "Đậu rán", price: 30000, available: true },
+          { id: "dau_tam_hanh", name: "Đậu tẩm hành", price: 40000, available: true },
+          { id: "nem_chua", name: "Nem chua", price: 40000, available: true },
+          { id: "nem_ngua", name: "Nem ngựa", price: 80000, available: true },
+          { id: "gio_bo", name: "Giò bò", price: 60000, available: true },
+          { id: "ngo_chien", name: "Ngô chiên", price: 40000, available: true },
+          { id: "ca_chi_vang", name: "Cá chỉ vàng", price: 80000, available: true },
+          { id: "ca_mai_chao", name: "Cá mai chao", price: 110000, available: true },
+          { id: "muc_kho_nuong", name: "Mực khô nướng", price: 150000, available: true },
+          { id: "muop_dang_ruoc", name: "Mướp đắng ruốc", price: 60000, available: true },
+          { id: "top_mo_dua_chua", name: "Tóp mỡ dưa chua", price: 100000, available: true },
+          { id: "hen_xuc_phong_tom", name: "Hến xúc phồng tôm", price: 100000, available: true },
+          { id: "bo_xuc_phong_tom", name: "Bò xúc phồng tôm", price: 130000, available: true },
+          { id: "nom_tai_heo", name: "Nộm tai heo", price: 100000, available: true },
+          { id: "nom_bo", name: "Nộm bò", price: 130000, available: true },
+          { id: "nom_sua", name: "Nộm sứa", price: 100000, available: true },
+          { id: "trung_ran_la_ngai", name: "Trứng rán lá ngải", price: 60000, available: true },
+          { id: "luoi_lon_tran", name: "Lưỡi lợn trần", price: 130000, available: true },
+          { id: "quai_lac_tran", name: "Quai lạc trần", price: 130000, available: true }
+        ]
+      },
+      {
+        id: "nuong", name: "Nướng",
+        items: [
+          { id: "ga_nuong_ca_con", name: "Gà nướng cả con", price: 300000, available: true },
+          { id: "tom_nuong", name: "Tôm nướng", price: 150000, available: true },
+          { id: "hau_nuong", name: "Hàu nướng", price: 100000, available: true },
+          { id: "ca_nuong", name: "Cá nướng", price: 200000, available: true },
+          { id: "ba_chi_nuong", name: "Ba chỉ nướng", price: 130000, available: true },
+          { id: "doi_sun_nuong", name: "Dồi sụn nướng", price: 130000, available: true },
+          { id: "long_nuong", name: "Lòng nướng", price: 80000, available: true },
+          { id: "cat_nuong", name: "Cật nướng", price: 100000, available: true },
+          { id: "thap_cam_nuong", name: "Thập cẩm nướng", price: 150000, available: true }
+        ]
+      },
+      {
+        id: "mon_xao", name: "Xào",
+        items: [
+          { id: "rau_xao", name: "Rau xào", price: 40000, available: true },
+          { id: "ech_xao_mang", name: "Ếch xào măng", price: 120000, available: true },
+          { id: "ngua_xao_rau", name: "Ngựa xào rau", price: 130000, available: true },
+          { id: "bap_bo_xao_rau", name: "Bắp bò xào rau", price: 130000, available: true },
+          { id: "cho_xao_lan", name: "Chó xào lăn", price: 130000, available: true },
+          { id: "xach_xao", name: "Xách xào", price: 150000, available: true },
+          { id: "long_xao_dua", name: "Lòng xào dưa", price: 80000, available: true },
+          { id: "quai_lac_xao_rau", name: "Quai lạc xào rau", price: 150000, available: true },
+          { id: "muop_dang_xao_trung", name: "Mướp đắng xào trứng", price: 60000, available: true },
+          { id: "muc_xao", name: "Mực xào", price: 200000, available: true },
+          { id: "muc_nau_chua", name: "Mực nấu chua", price: 200000, available: true },
+          { id: "muc_hap", name: "Mực hấp", price: 200000, available: true }
+        ]
+      },
+      {
+        id: "mon_chien", name: "Chiên",
+        items: [
+          { id: "ech_rang_muoi", name: "Ếch rang muối", price: 120000, available: true },
+          { id: "ga_rang_muoi", name: "Gà rang muối", price: 150000, available: true },
+          { id: "ga_chien_mam", name: "Gà chiên mắm", price: 150000, available: true },
+          { id: "vit_rang_rieng", name: "Vịt rang riềng", price: 130000, available: true },
+          { id: "chan_ga_chien_mam", name: "Chân gà chiên mắm", price: 100000, available: true },
+          { id: "su_lon_chien_mam", name: "Sú lợn chiên mắm", price: 130000, available: true },
+          { id: "tom_rang_muoi", name: "Tôm rang muối", price: 130000, available: true },
+          { id: "ca_trung_chien_la_lot", name: "Cá trứng chiên lá lốt", price: 130000, available: true },
+          { id: "chau_chau_chien", name: "Châu chấu chiên", price: 120000, available: true },
+          { id: "ca_bong_chien_la_not", name: "Cá bống chiên lá nốt", price: 120000, available: true },
+          { id: "ba_chi_rang_rieng", name: "Ba chỉ rang riềng", price: 130000, available: true },
+          { id: "suon_chao_moc_mat", name: "Sườn chao móc mật", price: 150000, available: true },
+          { id: "quai_lac_chao_moc_mat", name: "Quai lạc chao móc mật", price: 150000, available: true }
+        ]
+      },
+      {
+        id: "mon_lau", name: "Lẩu",
+        items: [
+          { id: "lau_thai_thap_cam", name: "Lẩu thái thập cẩm", price: 500000, available: true },
+          { id: "lau_ech", name: "Lẩu ếch", price: 400000, available: true },
+          { id: "lau_xuong_dau", name: "Lẩu xương đầu", price: 400000, available: true }
+        ]
+      },
+      {
+        id: "com_my", name: "Cơm mỳ",
+        items: [
+          { id: "com_rang_thap_cam", name: "Cơm rang thập cẩm", price: 60000, available: true },
+          { id: "com_rang_dua_bo", name: "Cơm rang dưa bò", price: 80000, available: true },
+          { id: "com_rang_hai_san", name: "Cơm rang hải sản", price: 100000, available: true },
+          { id: "mi_xao", name: "Mì xào", price: 60000, available: true },
+          { id: "canh_chua_ca_ria", name: "Canh chua cá rìa", price: 100000, available: true },
+          { id: "canh_trung", name: "Canh trứng", price: 60000, available: true }
+        ]
+      },
+      {
+        id: "do_uong", name: "Đồ uống",
+        items: [
+          { id: "bia_hoi", name: "Bia hơi", price: 8000, available: true },
+          { id: "bia_lon", name: "Bia lon", price: 13000, available: true },
+          { id: "bia_chai", name: "Bia chai", price: 14000, available: true },
+          { id: "nuoc_ngot", name: "Nước ngọt", price: 15000, available: true },
+          { id: "nuoc_loc", name: "Nước lọc", price: 10000, available: true },
+          { id: "ruou", name: "Rượu", price: 30000, available: true },
+          { id: "thuoc_la", name: "Thuốc lá", price: 20000, available: true }
+        ]
+      }
+    ];
+
+    const MON_RECIPES = {
+      "bia_hoi": { ing_id: "bia_hoi_raw", qty: 1 },
+      "bia_lon": { ing_id: "bia_lon_ready", qty: 1 },
+      "ech_rang_muoi": { ing_id: "ech_tuoi", qty: 0.5 },
+      "ga_nuong_ca_con": { ing_id: "ga_ta", qty: 1 },
+      "dau_ran": { ing_id: "dau_phu", qty: 4 }
+    };
+
+    let menuData = []; let tablesState = {}; let invoicesHistory = []; let selectedPosTable = null;
+    let kitchenViewMode = 'by-order'; let simulatorCart = {}; let temporaryModalCart = {};
+    let categoryChartInstance = null; let inventoryData = []; let lastTotalQtyMap = {}; let lastBeerQtyMap = {};
+    let isSoundEnabled = true; 
+    
+    let isSyncing = false; 
+    let syncTimeoutTimer = null;
+
+    let flatMenuItemsCache = [];
+    let menuItemsMap = new Map();
+    let touchStartX = 0; let touchEndX = 0;
+
+    window.addEventListener("DOMContentLoaded", () => {
+      initDataStorage();
+      TABLE_NAMES.forEach(name => { tablesState[name] = { name: name, status: 'empty', currentOrder: null }; });
+      lucide.createIcons();
+      startClock();
+      fetchDataFromSheets(); 
+      
+      setInterval(fetchDataFromSheets, 5000);
+
+      const swipePanel = document.getElementById("mobile-swipe-panel");
+      if (swipePanel) {
+        swipePanel.addEventListener("touchstart", (e) => { touchStartX = e.changedTouches[0].screenX; }, {passive: true});
+        swipePanel.addEventListener("touchend", (e) => {
+          touchEndX = e.changedTouches[0].screenX;
+          handleMobileSwipeLogic();
+        }, {passive: true});
+      }
+    });
+
+    function handleMobileSwipeLogic() {
+      const swipeDistance = Math.abs(touchEndX - touchStartX);
+      if (window.innerWidth <= 768 && swipeDistance > 80) {
+        closeMobileBillFullscreen();
+      }
+    }
+
+    async function fetchDataFromSheets() {
+      if (isSyncing) return;
+      if (!WEB_APP_URL || WEB_APP_URL.includes("...")) return;
+      
+      try {
+        const res = await fetch(WEB_APP_URL);
+        const cloud = await res.json();
+        
+        if (cloud.inventory) {
+          inventoryData = cloud.inventory.map(row => ({ id: row[0], name: row[1], stock: Number(row[2]), unit: row[3], minAlert: Number(row[4]) }));
+        }
+        
+        if (cloud.menuStatus) {
+          cloud.menuStatus.forEach(row => {
+            const item = menuItemsMap.get(row[0]);
+            if(item) item.available = (row[2] === true || row[2] === "true");
+          });
+        }
+
+        TABLE_NAMES.forEach(name => { tablesState[name] = { name, status: 'empty', currentOrder: null }; });
+        invoicesHistory = []; 
+        const activeOrdersMap = {};
+        
+        if (cloud.orders) {
+          cloud.orders.forEach(row => {
+            const isPaid = String(row[0]).indexOf("PAID_") === 0;
+            const orderId = isPaid ? String(row[0]).replace("PAID_", "") : row[0];
+            const orderObj = { order_id: orderId, table_name: row[1], note: row[2] || "", total_qty: Number(row[3]) || 0, total_price: Number(row[4]) || 0, created_at: row[5], items: [] };
+            if (isPaid) { invoicesHistory.push(orderObj); } else { activeOrdersMap[orderId] = orderObj; }
+          });
+        }
+
+        if (cloud.orderItems) {
+          cloud.orderItems.forEach(row => {
+            const orderId = row[0];
+            const itemObj = { item_id: row[1], item_name: row[2], qty: Number(row[3]) || 0, unit_price: Number(row[4]) || 0, line_total: Number(row[5]) || 0, status: row[6] || 'pending' };
+            if (activeOrdersMap[orderId]) { activeOrdersMap[orderId].items.push(itemObj); } else { const histOrder = invoicesHistory.find(h => h.order_id === orderId); if (histOrder) histOrder.items.push(itemObj); }
+          });
+        }
+
+        const isFirstLoad = (Object.keys(lastTotalQtyMap).length === 0);
+
+        Object.values(activeOrdersMap).forEach(ord => {
+          if (tablesState[ord.table_name]) { 
+            tablesState[ord.table_name].status = 'occupied'; 
+            tablesState[ord.table_name].currentOrder = ord; 
+
+            let currentTableQty = 0;
+            let currentBeerQty = 0;
+            
+            ord.items.forEach(item => {
+              currentTableQty += item.qty;
+              const idClean = String(item.item_id).toLowerCase();
+              if (idClean.includes('bia')) { currentBeerQty += item.qty; }
+            });
+            
+            const previousTableQty = lastTotalQtyMap[ord.table_name] || 0;
+            const previousBeerQty = lastBeerQtyMap[ord.table_name] || 0;
+
+            if (!isFirstLoad) {
+              const addedBeer = currentBeerQty - previousBeerQty;
+              const addedTotal = currentTableQty - previousTableQty;
+              if (addedBeer > 0) { triggerBeerAlert(ord.table_name, addedBeer); } 
+              else if (addedTotal > 0) { triggerNewOrderAlert(ord.table_name, previousTableQty > 0); }
+            }
+            lastTotalQtyMap[ord.table_name] = currentTableQty;
+            lastBeerQtyMap[ord.table_name] = currentBeerQty;
+          }
+        });
+
+        TABLE_NAMES.forEach(name => { if (!activeOrdersMap[name]) { delete lastTotalQtyMap[name]; delete lastBeerQtyMap[name]; } });
+
+        renderPosTableGrid();
+        renderMenuManagementTable();
+        renderSimulatorMenu();
+        updateDashboardData();
+        renderKitchenDashboard();
+        renderInventoryTable();
+      } catch (err) { console.error("Lỗi đồng bộ dữ liệu từ Sheets:", err); }
+    }
+
+    async function sendDataToSheets(action, extraData) {
+      if (!WEB_APP_URL || WEB_APP_URL.includes("...")) return true;
+      
+      isSyncing = true; 
+      if (syncTimeoutTimer) clearTimeout(syncTimeoutTimer);
+
+      try {
+        const response = await fetch(WEB_APP_URL, { 
+          method: "POST", 
+          headers: { "Content-Type": "text/plain;charset=utf-8" }, 
+          body: JSON.stringify({ action: action, ...extraData }) 
+        });
+        
+        syncTimeoutTimer = setTimeout(() => {
+          isSyncing = false;
+        }, 2500);
+
+        return response.ok;
+      } catch (err) { 
+        console.error("Lỗi gửi dữ liệu lên Sheets:", err); 
+        isSyncing = false; 
+        return false; 
+      }
+    }
+
+    function trừKhoKhiGoiMon(itemsList) {
+      if (!itemsList || itemsList.length === 0) return;
+      itemsList.forEach(item => {
+        const recipe = MON_RECIPES[item.item_id];
+        if (recipe) {
+          const nguyênLiệuTrongKho = inventoryData.find(i => i.id === recipe.ing_id);
+          if (nguyênLiệuTrongKho) { nguyênLiệuTrongKho.stock = Math.max(0, nguyênLiệuTrongKho.stock - (recipe.qty * item.qty)); }
+        }
+      });
+      if (typeof renderInventoryTable === "function") { renderInventoryTable(); }
+    }
+
+    function renderInventoryTable() {
+      const tbody = document.getElementById("inventory-table-rows"); if (!tbody) return;
+      if (!inventoryData || inventoryData.length === 0) { tbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-slate-400 text-xs">Vui lòng nhập danh sách kho lên sheet.</td></tr>`; return; }
+      
+      let htmlBuffer = "";
+      for (let i = 0; i < inventoryData.length; i++) {
+        const ing = inventoryData[i];
+        const isLowStock = ing.stock <= ing.minAlert;
+        const statusBadge = isLowStock ? `<span class="bg-rose-50 text-rose-600 border border-rose-200 text-xxs px-2 py-0.5 rounded-full font-bold animate-pulse">Sắp hết hàng</span>` : `<span class="bg-emerald-50 text-emerald-600 border border-emerald-200 text-xxs px-2 py-0.5 rounded-full font-bold">An toàn</span>`;
+        htmlBuffer += `<tr class="hover:bg-slate-50/60 transition"><td class="px-6 py-3 font-mono text-xs text-slate-500 font-semibold">${ing.id}</td><td class="px-6 py-3 font-bold text-slate-800">${ing.name}</td><td class="px-6 py-3 text-center"><span id="stock-display-${ing.id}" class="text-sm font-black ${isLowStock ? 'text-rose-600' : 'text-slate-800'}">${ing.stock}</span></td><td class="px-6 py-3 text-xs text-slate-500 font-medium">${ing.unit}</td><td class="px-6 py-3" id="stock-badge-${ing.id}">${statusBadge}</td><td class="px-6 py-3 text-right"><input type="number" step="any" value="${ing.stock}" oninput="updateStockInline('${ing.id}', this.value)" class="w-20 text-center px-2 py-1 bg-slate-50 border rounded-lg text-xs font-bold focus:outline-none"></td></tr>`;
+      }
+      tbody.innerHTML = htmlBuffer;
+    }
+
+    async function updateStockInline(ingId, rawValue) {
+      const newQty = parseFloat(rawValue); if (isNaN(newQty) || newQty < 0) return;
+      const match = inventoryData.find(i => i.id === ingId);
+      if (match) {
+        match.stock = newQty; const displayEl = document.getElementById(`stock-display-${ingId}`);
+        if(displayEl) {
+          displayEl.innerText = newQty;
+          if(newQty <= match.minAlert) { displayEl.className = "text-sm font-black text-rose-600"; document.getElementById(`stock-badge-${ingId}`).innerHTML = `<span class="bg-rose-50 text-rose-600 border border-rose-200 text-xxs px-2 py-0.5 rounded-full font-bold animate-pulse">Sắp hết hàng</span>`; }
+          else { displayEl.className = "text-sm font-black text-slate-800"; document.getElementById(`stock-badge-${ingId}`).innerHTML = `<span class="bg-emerald-50 text-emerald-600 border border-emerald-200 text-xxs px-2 py-0.5 rounded-full font-bold">An toàn</span>`; }
+        }
+      }
+      await sendDataToSheets("update_stock", { ing_id: ingId, new_qty: newQty });
+    }
+
+    function initDataStorage() {
+      if (!localStorage.getItem("bi_menu_data")) { localStorage.setItem("bi_menu_data", JSON.stringify(DEFAULT_MENU)); }
+      menuData = JSON.parse(localStorage.getItem("bi_menu_data"));
+      if (!localStorage.getItem("bi_tables_state")) {
+        const initialTables = {}; TABLE_NAMES.forEach(name => { initialTables[name] = { name: name, status: 'empty', currentOrder: null }; });
+        localStorage.setItem("bi_tables_state", JSON.stringify(initialTables));
+      }
+      tablesState = JSON.parse(localStorage.getItem("bi_tables_state"));
+      if (!localStorage.getItem("bi_invoices_history")) { localStorage.setItem("bi_invoices_history", JSON.stringify([])); }
+      invoicesHistory = JSON.parse(localStorage.getItem("bi_invoices_history"));
+      
+      rebuildMenuItemsCache();
+    }
+
+    function rebuildMenuItemsCache() {
+      flatMenuItemsCache = [];
+      menuItemsMap.clear();
+      menuData.forEach(cat => { 
+        cat.items.forEach(item => { 
+          const flatObj = { ...item, categoryId: cat.id, categoryName: cat.name };
+          flatMenuItemsCache.push(flatObj); 
+          menuItemsMap.set(item.id, item);
+        }); 
+      });
+    }
+
+    function syncState(key) {
+      if(key === 'menu') { localStorage.setItem("bi_menu_data", JSON.stringify(menuData)); rebuildMenuItemsCache(); }
+      if(key === 'tables') localStorage.setItem("bi_tables_state", JSON.stringify(tablesState));
+      if(key === 'invoices') localStorage.setItem("bi_invoices_history", JSON.stringify(invoicesHistory));
+    }
+
+    function resetDataSystem() { if(confirm("Bạn có chắc chắn muốn cài lại dữ liệu không?")) { localStorage.clear(); location.reload(); } }
+    const formatVND = (num) => new Intl.NumberFormat("vi-VN").format(num) + "đ";
+    function generateId(prefix = 'OD') { return prefix + Date.now().toString().slice(-6) + Math.floor(Math.random() * 100); }
+    function getFlatMenuItems() { return flatMenuItemsCache; }
+
+    function startClock() { const run = () => { document.getElementById("clock").innerText = new Date().toLocaleTimeString("vi-VN") + " - " + new Date().toLocaleDateString("vi-VN"); }; run(); setInterval(run, 1000); }
+
+    function switchTab(tabId) {
+      document.querySelectorAll(".view-section").forEach(s => s.classList.add("hidden"));
+      document.querySelectorAll(".nav-btn").forEach(b => {
+        b.classList.remove("bg-amber-500", "text-slate-950", "shadow-lg", "shadow-amber-500/10");
+        b.classList.add("text-slate-400", "hover:bg-slate-800", "hover:text-white");
+      });
+      document.getElementById(`view-${tabId}`).classList.remove("hidden");
+      const activeBtn = document.getElementById(`btn-${tabId}`);
+      activeBtn.classList.remove("text-slate-400", "hover:bg-slate-800", "hover:text-white");
+      activeBtn.classList.add("bg-amber-500", "text-slate-950", "shadow-lg", "shadow-amber-500/10");
+
+      const hTitle = document.getElementById("header-title");
+      if(tabId === 'dashboard') { hTitle.innerText = "Bảng Điều Khiển"; updateDashboardData(); }
+      if(tabId === 'pos') { hTitle.innerText = "Sơ Đồ Bàn & Gọi Món"; renderPosTableGrid(); }
+      if(tabId === 'kitchen') { hTitle.innerText = "Điều Phối Nhà Bếp"; renderKitchenDashboard(); }
+      if(tabId === 'menu-mgr') { hTitle.innerText = "Quản Lý Thực Đơn"; renderMenuManagementTable(); }
+      if(tabId === 'inventory-mgr') { hTitle.innerText = "Quản Lý Kho"; renderInventoryTable(); }
+      if(tabId === 'simulator') { hTitle.innerText = "Giả Lập Quét Mã QR"; renderSimulatorMenu(); }
+    }
+
+    function updateDashboardData() {
+      const activeTables = Object.values(tablesState).filter(t => t.status === 'occupied').length;
+      const activeEl = document.getElementById('stat-active-tables'); if (activeEl) activeEl.innerText = `${activeTables}/${TABLE_NAMES.length}`;
+
+      let pendingCooking = 0;
+      Object.values(tablesState).forEach(t => { if(t.currentOrder && t.currentOrder.items) { t.currentOrder.items.forEach(i => { if(i.status === 'pending' || i.status === 'cooking') pendingCooking += i.qty; }); } });
+      document.getElementById("stat-pending-cooking").innerText = pendingCooking;
+      document.getElementById("kitchen-badge").innerText = pendingCooking;
+      document.getElementById("kitchen-badge").classList.toggle("hidden", pendingCooking === 0);
+
+      let totalRevenue = 0;
+      if (invoicesHistory && invoicesHistory.length > 0) {
+        invoicesHistory.forEach(inv => {
+          let rawPrice = inv.total_price || inv.totalPrice || inv.total || 0;
+          let safePrice = parseInt(String(rawPrice).replace(/[^0-9]/g, ""), 10);
+          if (isNaN(safePrice) || safePrice === 0) {
+            if (inv.items && inv.items.length > 0) {
+              safePrice = inv.items.reduce((sum, item) => {
+                let p = parseInt(String(item.unit_price || item.price || 0).replace(/[^0-9]/g, ""), 10) || 0;
+                let q = parseInt(String(item.qty || item.quantity || 0).replace(/[^0-9]/g, ""), 10) || 0;
+                return sum + (p * q);
+              }, 0);
+            } else { safePrice = 0; }
+          }
+          totalRevenue += safePrice;
+        });
+      }
+
+      const revEl = document.getElementById('stat-revenue'); if (revEl) revEl.innerText = totalRevenue.toLocaleString('vi-VN') + 'đ';
+      document.getElementById("stat-orders").innerText = invoicesHistory.length;
+      renderCategoryAnalyticsChart(); renderTopSellingItems(); renderRecentInvoicesTable();
+    }
+
+    function renderCategoryAnalyticsChart() {
+      const ctx = document.getElementById('categoryChart'); if (!ctx) return;
+      const revenueMap = { khai_vi: 0, nuong: 0, mon_xao: 0, mon_chien: 0, mon_lau: 0, com_my: 0, do_uong: 0 };
+      const nameMap = { khai_vi: "Khai vị", nuong: "Nướng", mon_xao: "Xào", mon_chien: "Chiên", mon_lau: "Lẩu", com_my: "Cơm mỳ", do_uong: "Đồ uống" };
+      
+      invoicesHistory.forEach(inv => { 
+        if(inv.items) {
+          inv.items.forEach(item => { 
+            const catId = flatMenuItemsCache.find(f => f.id === item.item_id)?.categoryId;
+            if (catId && revenueMap[catId] !== undefined) {
+              revenueMap[catId] += (Number(item.line_total) || 0); 
+            }
+          }); 
+        }
+      });
+      
+      if(categoryChartInstance) categoryChartInstance.destroy();
+      categoryChartInstance = new Chart(ctx, { type: 'bar', data: { labels: Object.keys(revenueMap).map(k => nameMap[k]), datasets: [{ label: 'Doanh thu (VND)', data: Object.values(revenueMap), backgroundColor: 'rgba(245, 158, 11, 0.75)', borderColor: 'rgba(245, 158, 11, 1)', borderWidth: 1.5, borderRadius: 6 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: '#f1f5f9' } }, x: { grid: { display: false } } } } });
+    }
+
+    function renderTopSellingItems() {
+      const container = document.getElementById("top-items-list"); const soldMap = {};
+      invoicesHistory.forEach(inv => { if(inv.items) { inv.items.forEach(i => { soldMap[i.item_name] = (soldMap[i.item_name] || 0) + i.qty; }); } });
+      const sorted = Object.entries(soldMap).sort((a,b) => b[1] - a[1]).slice(0, 5); if(sorted.length === 0) return;
+      container.innerHTML = sorted.map(([name, qty], index) => `<div class="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-100 rounded-xl"><div class="flex items-center space-x-2.5"><span class="w-6 h-6 flex items-center justify-center text-xs font-bold ${index===0?'bg-amber-500 text-slate-900': 'bg-slate-200 text-slate-600'} rounded-full">${index+1}</span><span class="text-sm font-semibold text-slate-700">${name}</span></div><span class="text-xs font-bold text-slate-500 bg-white border px-2 py-0.5 rounded-md">Đã bán: ${qty}</span></div>`).join("");
+    }
+
+    function renderRecentInvoicesTable() {
+      const tbody = document.getElementById("recent-invoice-table"); if(invoicesHistory.length === 0) return;
+      let htmlBuffer = "";
+      const reversedSlice = [...invoicesHistory].reverse().slice(0, 10);
+      
+      for (let i = 0; i < reversedSlice.length; i++) {
+        const inv = reversedSlice[i];
+        htmlBuffer += `
+        <tr onclick="viewDetailInvoice('${inv.order_id}')" class="hover:bg-amber-50/50 cursor-pointer transition group">
+          <td class="px-6 py-3.5 font-mono text-xs font-semibold text-slate-600 group-hover:text-amber-600 flex items-center gap-1"><i data-lucide="search" class="w-3 h-3 opacity-0 group-hover:opacity-100 text-amber-500 transition"></i>#${inv.order_id}</td>
+          <td class="px-6 py-3.5"><span class="px-2 py-1 bg-slate-100 rounded-md text-xs font-bold text-slate-700 capitalize">${inv.table_name}</span></td>
+          <td class="px-6 py-3.5 text-xs text-slate-500">${inv.created_at ? new Date(inv.created_at).toLocaleTimeString('vi-VN') : 'Vừa xong'}</td>
+          <td class="px-6 py-3.5 font-medium text-center">${inv.total_qty} món</td>
+          <td class="px-6 py-3.5 text-right font-bold text-emerald-600">${formatVND(inv.total_price)}</td>
+        </tr>`;
+      }
+      tbody.innerHTML = htmlBuffer;
+      lucide.createIcons(); 
+    }
+
+    function renderPosTableGrid() {
+      const container = document.getElementById("pos-table-grid"); if (!container) return;
+      let htmlBuffer = "";
+      const tablesArr = Object.values(tablesState);
+      
+      for (let i = 0; i < tablesArr.length; i++) {
+        const t = tablesArr[i];
+        let statusClasses = "bg-white hover:bg-slate-50 border-slate-200 text-slate-800"; 
+        let textStatus = "Bàn trống"; 
+        let itemsCount = "";
+        
+        if(t.status === 'occupied' && t.currentOrder) { 
+          statusClasses = "bg-amber-500 border-amber-600 text-slate-950 font-medium"; 
+          textStatus = "Đang ăn uống"; 
+          let sumQty = 0;
+          if(t.currentOrder.items) {
+            for(let j=0; j<t.currentOrder.items.length; j++) { sumQty += t.currentOrder.items[j].qty; }
+          }
+          itemsCount = `<span class="bg-slate-900/10 border border-slate-900/10 px-2 py-0.5 rounded text-xs font-bold">${sumQty} món</span>`; 
+        }
+        
+        if(selectedPosTable === t.name) { 
+          statusClasses = "bg-emerald-500 border-emerald-600 text-white font-medium"; 
+        }
+        
+        htmlBuffer += `<div onclick="selectPosTable('${t.name}')" class="p-4 rounded-2xl border-2 shadow-xs cursor-pointer transition flex flex-col justify-between h-28 ${statusClasses} ${selectedPosTable === t.name ? 'ring-4 ring-emerald-500/30 border-emerald-500' : ''}"><div class="flex justify-between items-start"><span class="font-bold text-sm tracking-wide capitalize">${t.name}</span>${itemsCount}</div><div class="text-xxs opacity-75 uppercase font-bold tracking-wider">${textStatus}</div></div>`;
+      }
+      container.innerHTML = htmlBuffer;
+      updatePosBillPanel();
+    }
+
+   // 🌟 SỬA HÀM CHỌN BÀN: Kích hoạt hiển thị bong bóng Messenger bay theo vị trí bàn 🌟
+    function selectPosTable(tableName) { 
+      selectedPosTable = tableName; 
+      
+      const badgeEl = document.getElementById("selected-table-badge");
+      if(badgeEl) badgeEl.innerText = `Đang chọn thao tác: Bàn [${tableName}]`; 
+      
+      const quickTableLbl = document.getElementById("quickbar-selected-table");
+      if (quickTableLbl) quickTableLbl.innerText = tableName.toUpperCase();
+      
+      // XỬ LÝ ĐỊNH VỊ BONG BÓNG TRÊN MOBILE / IPAD
+      const bubble = document.getElementById("mobile-beer-quickbar");
+      if (bubble) {
+        if (window.innerWidth <= 1024) { // Chạy trên cả Điện thoại và iPad
+          // Tìm xem phần tử bàn vừa được bấm nằm ở đâu trên màn hình
+          // Chúng ta cần tìm phần tử div chứa tên bàn đó trong danh sách ô lưới
+          const targetGrid = document.getElementById("pos-table-grid");
+          if (targetGrid) {
+            // Duyệt qua các ô bàn để tìm đúng ô có tên bàn trùng khớp
+            const divs = targetGrid.getElementsByTagName("div");
+            let targetDiv = null;
+            for (let i = 0; i < divs.length; i++) {
+              if (divs[i].innerText.toLowerCase().includes(tableName.toLowerCase())) {
+                targetDiv = divs[i];
+                break;
+              }
+            }
+            
+            if (targetDiv) {
+              const rect = targetDiv.getBoundingClientRect();
+              
+              // Hiện bong bóng và định vị nó nằm ngay dưới hoặc đè lên cạnh dưới của ô bàn
+              bubble.classList.remove("hidden");
+              bubble.style.display = "flex"; // Ép hiển thị flex hàng ngang
+              
+              // Tính toán tọa độ xuất hiện (Căn giữa bong bóng theo chiều ngang của bàn)
+              bubble.style.left = `${rect.left + (rect.width / 2) - 100}px`; 
+              bubble.style.top = `${rect.bottom + window.scrollY - 10}px`; // Xuất hiện sát dưới bàn 10px
+            }
+          }
+        } else {
+          // Trên máy tính PC thì ẩn bong bóng đi vì đã có thanh chi tiết bên phải
+          bubble.classList.add("hidden");
+        }
+      }
+
+      renderPosTableGrid(); 
+    }
+
+    // Hàm đóng bong bóng bia chủ động
+    function closeBeerBubble() {
+      const bubble = document.getElementById("mobile-beer-quickbar");
+      if (bubble) bubble.classList.add("hidden");
+    }
+
+    // Cập nhật thêm vào hàm closeMobileBillFullscreen để khi thoát xem chi tiết hóa đơn thì ẩn luôn bong bóng
+    function closeMobileBillFullscreen() { 
+      selectedPosTable = null; 
+      closeBeerBubble();
+      renderPosTableGrid(); 
+    }
+
+    function updatePosBillPanel() {
+      const billContainer = document.getElementById("bill-items-container"); if(!billContainer) return;
+      const triggerBtn = document.getElementById("btn-trigger-add-dish"); 
+      const printBtn = document.getElementById("btn-print-bill"); 
+      const checkoutBtn = document.getElementById("btn-checkout-bill");
+      const billWrapper = document.getElementById("mobile-swipe-panel");
+
+      if(!selectedPosTable) {
+        if(triggerBtn) triggerBtn.disabled = true; if(printBtn) printBtn.disabled = true; if(checkoutBtn) checkoutBtn.disabled = true; 
+        if(billWrapper) billWrapper.classList.remove("show-mobile-fullscreen"); 
+        return; 
+      }
+      
+      if(billWrapper) billWrapper.classList.add("show-mobile-fullscreen");
+      
+      const table = tablesState[selectedPosTable]; 
+      document.getElementById("bill-table-heading").innerHTML = `<span>Bàn: <span class="capitalize text-amber-600">${table.name}</span></span>`;
+      if(triggerBtn) triggerBtn.disabled = false;
+
+      if(table.status === 'empty' || !table.currentOrder) {
+        document.getElementById("bill-order-id").innerText = "Trạng thái: Bàn đang trống"; 
+        document.getElementById("bill-summary-qty").innerText = "0"; 
+        document.getElementById("bill-summary-total").innerText = "0đ"; 
+        if(printBtn) printBtn.disabled = true; 
+        if(checkoutBtn) checkoutBtn.disabled = true;
+        billContainer.innerHTML = `
+          <div class="text-center py-16 text-slate-400 flex flex-col items-center justify-center space-y-3">
+            <i data-lucide="utensils" class="w-8 h-8 text-slate-300"></i><p class="text-xs">Bàn này chưa có món ăn.</p>
+            <button onclick="openAddItemsModal()" class="bg-slate-900 text-white font-bold text-xs px-4 py-2 rounded-xl">Gọi món ngay</button>
+          </div>`;
+        lucide.createIcons(); 
+        return;
+      }
+      
+      const order = table.currentOrder; 
+      document.getElementById("bill-order-id").innerText = `Mã đơn: #${order.order_id}`; 
+      document.getElementById("bill-summary-qty").innerText = order.total_qty; 
+      document.getElementById("bill-summary-total").innerText = formatVND(order.total_price); 
+      if(printBtn) printBtn.disabled = false; 
+      if(checkoutBtn) checkoutBtn.disabled = false;
+      
+      let htmlBuffer = "";
+      if(order.items) {
+        for (let i = 0; i < order.items.length; i++) {
+          const item = order.items[i];
+          let badge = item.status === 'pending' ? 'Chờ làm' : (item.status === 'cooking' ? 'Đang nấu' : (item.status === 'done' ? 'Đã xong' : 'Đã phục vụ'));
+          let badgeColor = item.status === 'pending' ? 'bg-rose-50 text-rose-600 border-rose-200' : (item.status === 'cooking' ? 'bg-amber-50 text-amber-600 border-amber-200' : (item.status === 'done' ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-emerald-50 text-emerald-600 border-emerald-200'));
+          htmlBuffer += `<div class="bg-white p-3 rounded-xl border border-slate-200/80 shadow-2xs flex justify-between items-center">
+            <div class="space-y-0.5">
+              <div class="font-bold text-sm text-slate-800">${item.item_name}</div>
+              <div class="text-xs text-slate-400">${formatVND(item.unit_price)} &times; <strong class="text-slate-700">${item.qty}</strong></div>
+            </div>
+            <div class="flex flex-col items-end space-y-1">
+              <span class="font-bold text-sm text-slate-800">${formatVND(item.line_total)}</span>
+              <span class="${badgeColor} border text-xxs px-1.5 py-0.5 rounded">${badge}</span>
+            </div>
+          </div>`;
+        }
+      }
+      billContainer.innerHTML = htmlBuffer;
+    }
+
+    function closeMobileBillFullscreen() { selectedPosTable = null; renderPosTableGrid(); }
+    
+    function openAddItemsModal() {
+      if(!selectedPosTable) return;
+      temporaryModalCart = {}; 
+      rebuildMenuItemsCache(); 
+      
+      document.getElementById("modal-table-title").innerText = `Bàn "${selectedPosTable}"`; 
+      document.getElementById("modal-search-input").value = ""; 
+      
+      const billWrapper = document.getElementById("mobile-swipe-panel");
+      if(billWrapper) billWrapper.classList.remove("show-mobile-fullscreen");
+      
+      document.getElementById("add-dish-modal").classList.remove("hidden"); 
+      renderModalItems();
+    }
+
+    function closeAddItemsModal() { 
+      temporaryModalCart = {}; 
+      document.getElementById("add-dish-modal").classList.add("hidden"); 
+      renderPosTableGrid(); 
+    }
+
+    // 🌟 HÀM TĂNG GIẢM SỐ LƯỢNG (BỔ SUNG QUAN TRỌNG): Thay đổi trị và cập nhật DOM lập tức
+    function adjustModalItemQty(itemId, delta) {
+      const currentQty = temporaryModalCart[itemId] || 0; 
+      const nextQty = currentQty + delta; 
+      
+      if (nextQty <= 0) { 
+        delete temporaryModalCart[itemId]; 
+      } else { 
+        temporaryModalCart[itemId] = nextQty; 
+      }
+      
+      // Tìm nhắm thẳng ô hiển thị số lượng để đổi số cực nhanh không lag màn hình
+      const qtyLabel = document.getElementById(`modal-item-qty-${itemId}`);
+      if (qtyLabel) {
+        qtyLabel.innerText = temporaryModalCart[itemId] || 0;
+      }
+    }
+
+    function renderModalItems() {
+      const container = document.getElementById("modal-items-list"); 
+      if(!container) return;
+      
+      const searchKey = document.getElementById("modal-search-input").value.trim().toLowerCase();
+      let htmlBuffer = "";
+      
+      for (let i = 0; i < flatMenuItemsCache.length; i++) {
+        const item = flatMenuItemsCache[i];
+        if (searchKey && !item.name.toLowerCase().includes(searchKey)) continue;
+        
+        const qty = temporaryModalCart[item.id] || 0;
+        htmlBuffer += `
+          <div class="bg-white p-3 rounded-xl border border-slate-200 flex justify-between items-center ${!item.available ? 'opacity-40 pointer-events-none bg-slate-200' : ''}">
+            <div>
+              <div class="font-bold text-xs text-slate-800 flex items-center gap-1">
+                ${item.name} ${!item.available ? '<span class="text-xxs bg-red-500 text-white px-1.5 py-0.5 rounded">Hết món</span>' : ''}
+              </div>
+              <div class="text-xs font-semibold text-amber-600 mt-0.5">${formatVND(item.price)}</div>
+            </div>
+            <div class="flex items-center space-x-2">
+              <button type="button" onclick="adjustModalItemQty('${item.id}', -1)" class="w-7 h-7 bg-slate-100 hover:bg-slate-200 font-bold rounded-lg text-xs flex items-center justify-center select-none">-</button>
+              <span id="modal-item-qty-${item.id}" class="text-sm font-bold text-slate-800 w-5 text-center select-none">${qty}</span>
+              <button type="button" onclick="adjustModalItemQty('${item.id}', 1)" class="w-7 h-7 bg-amber-500 text-slate-950 font-bold rounded-lg text-xs flex items-center justify-center select-none">+</button>
+            </div>
+          </div>`;
+      }
+      container.innerHTML = htmlBuffer || `<p class="col-span-2 text-center text-xs text-slate-400 py-6">Không tìm thấy món ăn.</p>`;
+    }
+
+    async function saveModalAddedItems() {
+      const table = tablesState[selectedPosTable]; 
+      const cartEntries = Object.entries(temporaryModalCart);
+      if(cartEntries.length === 0) { closeAddItemsModal(); return; }
+
+      isSyncing = true;
+
+      let currentItems = (table.currentOrder && table.currentOrder.items) ? [...table.currentOrder.items] : [];
+      let newlyAddedItemsForInventory = [];
+
+      for(let i = 0; i < cartEntries.length; i++) {
+        const [itemId, qty] = cartEntries[i];
+        const dish = menuItemsMap.get(itemId);
+        
+        if(dish && qty > 0) {
+          newlyAddedItemsForInventory.push({ item_id: itemId, qty: qty });
+          const matchOldIndex = currentItems.findIndex(x => x.item_id === itemId && x.status === 'pending');
+          
+          if(matchOldIndex !== -1) {
+            currentItems[matchOldIndex].qty += qty;
+            currentItems[matchOldIndex].line_total = currentItems[matchOldIndex].qty * dish.price;
+          } else {
+            currentItems.push({ 
+              item_id: itemId, 
+              item_name: dish.name, 
+              qty: qty, 
+              unit_price: dish.price, 
+              line_total: qty * dish.price, 
+              status: 'pending' 
+            });
+          }
+        }
+      }
+      
+      let finalTotalQty = currentItems.reduce((sum, item) => sum + Number(item.qty), 0);
+      let finalTotalPrice = currentItems.reduce((sum, item) => sum + Number(item.line_total), 0);
+
+      table.status = 'occupied';
+      table.currentOrder = { 
+        order_id: table.currentOrder ? table.currentOrder.order_id : generateId(), 
+        table_name: selectedPosTable, 
+        note: table.currentOrder ? table.currentOrder.note : "", 
+        total_qty: finalTotalQty, 
+        total_price: finalTotalPrice, 
+        created_at: table.currentOrder ? table.currentOrder.created_at : new Date().toISOString(), 
+        items: currentItems 
+      };
+      
+      syncState('tables'); 
+      trừKhoKhiGoiMon(newlyAddedItemsForInventory); 
+      
+      temporaryModalCart = {}; 
+      
+      document.getElementById("add-dish-modal").classList.add("hidden");
+      renderPosTableGrid();
+
+      await sendDataToSheets("save_order", { data: table.currentOrder }); 
+    }
+
+    async function checkoutActiveTable() {
+      if(!selectedPosTable || !tablesState[selectedPosTable].currentOrder) return;
+      const table = tablesState[selectedPosTable]; const order = table.currentOrder;
+      const normalizedTableName = table.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase().replace(/\s+/g, '_');
+      const description = `BAN_${normalizedTableName}_${order.order_id}`;
+      const qrUrl = `https://img.vietqr.io/image/${BANK_CONFIG.BANK_ID}-${BANK_CONFIG.ACCOUNT_NO}-qr_only.png?amount=${order.total_price}&addInfo=${encodeURIComponent(description)}&accountName=${encodeURIComponent(BANK_CONFIG.ACCOUNT_NAME)}`;
+
+      const qrModal = document.createElement("div"); qrModal.className = "fixed inset-0 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center z-[120] p-4"; qrModal.id = "vietqr-payment-modal";
+      qrModal.innerHTML = `
+        <div class="bg-white rounded-2xl p-6 shadow-2xl border max-w-sm w-full text-center space-y-4">
+          <div class="flex justify-between items-center border-b pb-2"><h3 class="font-bold text-slate-800 text-base">Thanh Toán Qua Mã VietQR</h3><button onclick="document.getElementById('vietqr-payment-modal').remove()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button></div>
+          <div class="p-1 bg-slate-50 border rounded-xl font-medium text-xs text-slate-700 capitalize">Bàn: <strong class="text-slate-900">${table.name}</strong> | Số tiền: <strong class="text-amber-600 text-sm">${formatVND(order.total_price)}</strong></div>
+          <div class="bg-white p-2 border-2 border-dashed border-slate-200 rounded-2xl flex justify-center"><img src="${qrUrl}" class="w-60 h-60 object-contain"></div>
+          <div class="grid grid-cols-2 gap-3 pt-1"><button onclick="document.getElementById('vietqr-payment-modal').remove()" class="py-2.5 border rounded-xl text-slate-600 font-semibold text-xs bg-slate-50">Hủy bỏ</button><button onclick="confirmPaidAndCheckout('${order.order_id}')" class="py-2.5 bg-emerald-600 text-white font-bold text-xs rounded-xl shadow">Xác nhận đã nhận tiền</button></div>
+        </div>`;
+      document.body.appendChild(qrModal);
+    }
+
+    async function confirmPaidAndCheckout(orderId) {
+      const table = tablesState[selectedPosTable]; if(!table || !table.currentOrder || table.currentOrder.order_id !== orderId) return;
+      
+      isSyncing = true; 
+      
+      invoicesHistory.push({ ...table.currentOrder, completed_at: new Date().toISOString() }); syncState('invoices');
+      table.status = 'empty'; table.currentOrder = null; syncState('tables');
+      
+      const modal = document.getElementById("vietqr-payment-modal"); if(modal) modal.remove();
+      closeMobileBillFullscreen();
+
+      await sendDataToSheets("checkout_order", { order_id: orderId });
+    }
+
+    function switchKitchenMode(mode) {
+      kitchenViewMode = mode;
+      document.getElementById("ktab-by-order").className = mode === 'by-order' ? "px-4 py-2 text-sm font-semibold rounded-lg bg-slate-900 text-white shadow" : "px-4 py-2 text-sm font-medium rounded-lg text-slate-600 hover:bg-slate-100";
+      document.getElementById("ktab-by-dish").className = mode === 'by-dish' ? "px-4 py-2 text-sm font-semibold rounded-lg bg-slate-900 text-white shadow" : "px-4 py-2 text-sm font-medium rounded-lg text-slate-600 hover:bg-slate-100";
+      document.getElementById("kitchen-container-orders").classList.toggle("hidden", mode !== 'by-order');
+      document.getElementById("kitchen-container-dishes").classList.toggle("hidden", mode !== 'by-dish');
+      renderKitchenDashboard();
+    }
+
+    function renderKitchenDashboard() {
+      if(kitchenViewMode === 'by-order') {
+        const container = document.getElementById("kitchen-container-orders"); if(!container) return;
+        const actives = Object.values(tablesState).filter(t => t.status === 'occupied' && t.currentOrder);
+        if(actives.length === 0) { container.innerHTML = `<div class="col-span-3 bg-white border rounded-2xl p-12 text-center text-slate-400 text-sm">Hiện chưa có món ăn nào chờ bếp.</div>`; return; }
+        
+        let htmlBuffer = "";
+        for(let i=0; i<actives.length; i++) {
+          const t = actives[i]; const ord = t.currentOrder; let itemsHtml = "";
+          if(ord.items) {
+            for(let j=0; j<ord.items.length; j++) {
+              const item = ord.items[j];
+              let color = item.status === 'served' ? "opacity-40 line-through text-slate-400 bg-slate-100" : "text-slate-700 bg-slate-50";
+              let opBtn = item.status === 'served' ? `<i data-lucide="check" class="w-4 h-4 text-emerald-600"></i>` : `<button onclick="advanceKitchenItemStatus('${t.name}', '${item.item_id}')" class="text-xxs px-2 py-1 bg-amber-500 text-slate-900 font-bold rounded">Nấu</button>`;
+              itemsHtml += `<div class="p-2 rounded-xl flex items-center justify-between text-xs ${color}"><div><span class="font-bold text-sm text-slate-900 mr-1.5">&times;${item.qty}</span><span>${item.item_name}</span></div><div>${opBtn}</div></div>`;
+            }
+          }
+          htmlBuffer += `<div class="bg-white border-2 border-slate-200 rounded-2xl p-4 shadow-xs space-y-3"><div class="flex justify-between items-center border-b pb-2"><span class="font-black text-slate-800 text-base capitalize bg-slate-100 px-2.5 py-1 rounded-lg">Bàn: ${t.name}</span><span class="text-xxs font-mono text-slate-400">#${ord.order_id}</span></div>${ord.note ? `<div class="p-2 bg-rose-50 border border-rose-100 text-rose-700 rounded-lg text-xxs font-medium">⚠️ Ghi chú: ${ord.note}</div>` : ''}<div class="space-y-1.5">${itemsHtml}</div></div>`;
+        }
+        container.innerHTML = htmlBuffer; lucide.createIcons();
+      } else {
+        const tbody = document.getElementById("kitchen-dish-table-rows"); if(!tbody) return;
+        const aggregate = {}; const tablesArr = Object.values(tablesState);
+        for(let i=0; i<tablesArr.length; i++) {
+          const t = tablesArr[i];
+          if(t.currentOrder && t.currentOrder.items) {
+            for(let j=0; j<t.currentOrder.items.length; j++) {
+              const item = t.currentOrder.items[j];
+              if(item.status !== 'served') {
+                if(!aggregate[item.item_id]) { aggregate[item.item_id] = { name: item.item_name, totalQty: 0, details: [] }; }
+                aggregate[item.item_id].totalQty += item.qty; aggregate[item.item_id].details.push({ tableName: t.name, qty: item.qty, status: item.status });
+              }
+            }
+          }
+        }
+        const arr = Object.entries(aggregate); if(arr.length === 0) { tbody.innerHTML = `<tr><td colspan="4" class="text-center py-10 text-slate-400 text-xs">Không có món ăn nào chờ bếp.</td></tr>`; return; }
+        tbody.innerHTML = arr.map(([itemId, data]) => `<tr class="hover:bg-slate-50"><td class="px-6 py-4 font-bold text-slate-800">${data.name}</td><td class="px-6 py-4 text-center"><span class="bg-slate-900 text-amber-400 font-extrabold text-sm px-3 py-1 rounded-full">${data.totalQty}</span></td><td class="px-6 py-4 max-w-xs">${data.details.map(d => `<span class="inline-block text-xxs px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 mr-1 capitalize mb-1">Bàn ${d.tableName} (&times;${d.qty})</span>`).join("")}</td><td class="px-6 py-4 text-right"><button onclick="advanceMassDishKitchenStatus('${itemId}')" class="px-3 py-1.5 bg-slate-900 text-amber-400 font-bold text-xs rounded-lg shadow">Duyệt nhanh</button></td></tr>`).join("");
+      }
+    }
+
+    async function advanceKitchenItemStatus(tableName, itemId) {
+      const order = tablesState[tableName].currentOrder; if(!order || !order.items) return;
+      const matched = order.items.find(i => i.item_id === itemId); if(!matched) return;
+      
+      isSyncing = true;
+
+      matched.status = 'served'; 
+      syncState('tables'); 
+      renderKitchenDashboard(); 
+      updateDashboardData(); 
+      
+      await sendDataToSheets("update_item_status", { order_id: order.order_id, item_id: itemId, status: 'served' });
+    }
+
+    async function advanceMassDishKitchenStatus(itemId) {
+      isSyncing = true; 
+      let ordersToUpdate = [];
+      
+      Object.values(tablesState).forEach(table => {
+        if (table.status === 'occupied' && table.currentOrder && table.currentOrder.items) {
+          table.currentOrder.items.forEach(item => {
+            if (item.item_id === itemId && item.status !== 'served') { 
+              item.status = 'served'; 
+              ordersToUpdate.push({ order_id: table.currentOrder.order_id, item_id: itemId, status: 'served' }); 
+            }
+          });
+        }
+      });
+      
+      if (ordersToUpdate.length === 0) { isSyncing = false; return; }
+      
+      syncState('tables'); 
+      renderKitchenDashboard(); 
+      updateDashboardData();
+      
+      const promises = ordersToUpdate.map(payload => 
+        fetch(WEB_APP_URL, { 
+          method: "POST", 
+          headers: { "Content-Type": "text/plain;charset=utf-8" }, 
+          body: JSON.stringify({ action: "update_item_status", ...payload }) 
+        })
+      );
+      
+      try { await Promise.all(promises); } catch (e) { console.error(e); }
+      
+      if (syncTimeoutTimer) clearTimeout(syncTimeoutTimer);
+      syncTimeoutTimer = setTimeout(() => { isSyncing = false; }, 2500);
+    }
+
+    function renderMenuManagementTable() {
+      const tbody = document.getElementById("menu-mgr-table-rows"); if(!tbody) return;
+      const searchKey = document.getElementById("menu-search-input").value.toLowerCase(); 
+      const catFilter = document.getElementById("menu-filter-category").value;
+      let htmlBuffer = "";
+      
+      for (let i = 0; i < menuData.length; i++) {
+        const cat = menuData[i]; if(catFilter !== 'all' && cat.id !== catFilter) continue;
+        for (let j = 0; j < cat.items.length; j++) {
+          const item = cat.items[j]; if(searchKey && !item.name.toLowerCase().includes(searchKey)) continue;
+          htmlBuffer += `<tr class="hover:bg-slate-50/70 transition"><td class="px-6 py-3 font-bold text-slate-800">${item.name}</td><td class="px-6 py-3 text-xs font-medium text-slate-500 uppercase">${cat.name}</td><td class="px-6 py-3 font-mono font-bold text-slate-600"><input type="number" step="1000" value="${item.price}" onchange="updateDishPriceInline('${item.id}', this.value)" class="w-24 px-2 py-1 bg-slate-50 border rounded text-xs font-bold focus:outline-none"></td><td class="px-6 py-3 text-center"><button onclick="toggleDishAvailability('${item.id}', ${!item.available})" class="px-2.5 py-1 rounded-xl font-semibold text-xs border ${item.available?'bg-emerald-50 text-emerald-600 border-emerald-200':'bg-rose-50 text-rose-600 border-rose-200'}">${item.available?'Còn hàng':'Hết món'}</button></td><td class="px-6 py-3 text-right text-xxs text-slate-400">Tự động</td></tr>`;
+        }
+      }
+      tbody.innerHTML = htmlBuffer || `<tr><td colspan="5" class="text-center py-10 text-slate-400 text-xs">Không có món ăn</td></tr>`;
+    }
+    function filterMenuManagement() { renderMenuManagementTable(); }
+
+    function toggleDishAvailability(itemId, newState) {
+      menuData.forEach(cat => { const found = cat.items.find(i => i.id === itemId); if(found) found.available = newState; }); syncState('menu');
+      const flat = flatMenuItemsCache.find(i => i.id === itemId); if (flat) sendDataToSheets("sync_menu_status", { item_id: itemId, item_name: flat.name, available: newState });
+      renderMenuManagementTable(); renderSimulatorMenu();
+    }
+    function updateDishPriceInline(itemId, rawValue) {
+      const newPrice = parseInt(rawValue); if(isNaN(newPrice) || newPrice < 0) return;
+      menuData.forEach(cat => { const found = cat.items.find(i => i.id === itemId); if(found) found.price = newPrice; }); syncState('menu');
+      renderSimulatorMenu();
+    }
+
+    function populateSimulatorSelectors() { document.getElementById("sim-table-select").innerHTML = TABLE_NAMES.map(name => `<option value="${name}" class="capitalize">${name}</option>`).join(""); }
+    
+    function renderSimulatorMenu() {
+      let htmlBuffer = "";
+      for (let i = 0; i < menuData.length; i++) {
+        const cat = menuData[i]; let itemsHtml = "";
+        for (let j = 0; j < cat.items.length; j++) {
+          const item = cat.items[j];
+          itemsHtml += `<div class="bg-slate-800/80 border border-slate-700/60 rounded-xl p-3 flex justify-between items-center ${!item.available?'opacity-30 pointer-events-none':''}"><div class="text-white font-bold text-xs"><div>${item.name}</div><div class="text-amber-400 mt-0.5">${formatVND(item.price)}</div></div><div class="flex items-center space-x-2"><button onclick="adjustSimCartQty('${item.id}', -1)" class="w-6 h-6 bg-slate-700 text-white font-bold rounded text-xs">-</button><span id="sim-qty-lbl-${item.id}" class="text-xs font-bold text-amber-400 w-4 text-center">${simulatorCart[item.id] || 0}</span><button onclick="adjustSimCartQty('${item.id}', 1)" class="w-6 h-6 bg-amber-500 text-slate-950 font-bold rounded text-xs">+</button></div></div>`;
+        }
+        htmlBuffer += `<div class="space-y-2"><h5 class="text-slate-400 text-xs font-bold uppercase border-l-2 border-amber-500 pl-2">${cat.name}</h5><div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">${itemsHtml}</div></div>`;
+      }
+      document.getElementById("sim-menu-container").innerHTML = htmlBuffer;
+      populateSimulatorSelectors(); updateSimulatorSummaryLabels();
+    }
+
+    function adjustSimCartQty(itemId, delta) {
+      const matched = menuItemsMap.get(itemId); if(!matched || !matched.available) return;
+      const next = (simulatorCart[itemId] || 0) + delta; if(next <= 0) delete simulatorCart[itemId]; else simulatorCart[itemId] = next;
+      const lbl = document.getElementById("sim-qty-lbl-" + itemId); if(lbl) lbl.innerText = simulatorCart[itemId] || 0;
+      updateSimulatorSummaryLabels();
+    }
+    
+    function updateSimulatorSummaryLabels() {
+      let q = 0; let m = 0; const cartEntries = Object.entries(simulatorCart);
+      for (let i = 0; i < cartEntries.length; i++) { const [id, qty] = cartEntries[i]; const d = menuItemsMap.get(id); if(d) { q += qty; m += (qty * d.price); } }
+      document.getElementById("sim-summary-count").innerText = `${q} món`; document.getElementById("sim-summary-money").innerText = formatVND(m);
+    }
+
+    async function submitSimulatedOrder() {
+      const targetTable = document.getElementById("sim-table-select").value; const noteText = document.getElementById("sim-note-input").value.trim();
+      const itemsList = []; let totalQty = 0; let totalPrice = 0;
+      Object.entries(simulatorCart).forEach(([id, qty]) => { const d = menuItemsMap.get(id); if(d) { totalQty += qty; totalPrice += (qty * d.price); itemsList.push({ item_id: id, item_name: d.name, qty: qty, unit_price: d.price, line_total: qty * d.price, status: 'pending' }); } });
+      if(itemsList.length === 0) return alert("Chọn món trước!");
+      
+      isSyncing = true;
+
+      const currentTableState = tablesState[targetTable];
+      if(currentTableState.status === 'occupied' && currentTableState.currentOrder) {
+        const existingOrder = currentTableState.currentOrder; if(!existingOrder.items) existingOrder.items = [];
+        itemsList.forEach(newItem => { const matchOld = existingOrder.items.find(o => o.item_id === newItem.item_id && o.status === 'pending'); if(matchOld) { matchOld.qty += newItem.qty; matchOld.line_total = matchOld.qty * matchOld.unit_price; } else { existingOrder.items.push(newItem); } });
+        existingOrder.total_qty += totalQty; existingOrder.total_price += totalPrice; if(noteText) existingOrder.note += (" | " + noteText);
+      } else {
+        tablesState[targetTable] = { name: targetTable, status: 'occupied', currentOrder: { order_id: generateId(), table_name: targetTable, note: noteText, total_qty: totalQty, total_price: totalPrice, created_at: new Date().toISOString(), items: itemsList } };
+      }
+      syncState('tables'); trừKhoKhiGoiMon(itemsList); 
+      
+      simulatorCart = {}; document.getElementById("sim-note-input").value = ""; renderSimulatorMenu(); updateDashboardData();
+      alert(`Đơn hàng của Bàn [${targetTable.toUpperCase()}] đã gửi lên Sheet!`);
+
+      await sendDataToSheets("save_order", { data: tablesState[targetTable].currentOrder });
+    }
+
+    function viewDetailInvoice(orderId) {
+      const inv = invoicesHistory.find(h => h.order_id === orderId); if (!inv) return;
+      const billModal = document.createElement("div"); billModal.className = "fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center z-50 p-4"; billModal.id = "detail-bill-modal";
+      let itemsHtml = "";
+      if(inv.items) {
+        itemsHtml = inv.items.map(item => `<div class="flex justify-between items-start text-xs border-b border-slate-100 pb-2 pt-1"><div class="space-y-0.5"><div class="font-bold text-slate-800">${item.item_name}</div><div class="text-slate-400 font-medium">${formatVND(item.unit_price)} &times; ${item.qty}</div></div><span class="font-bold text-slate-700 font-mono">${formatVND(item.line_total)}</span></div>`).join("");
+      }
+      billModal.innerHTML = `
+        <div class="bg-white rounded-2xl p-5 shadow-2xl border max-w-sm w-full space-y-4 max-h-[85vh] flex flex-col overflow-hidden">
+          <div class="flex justify-between items-center border-b pb-2 shrink-0"><div class="flex items-center gap-1.5 text-slate-800 font-bold"><i data-lucide="receipt" class="text-amber-500 w-5 h-5"></i><span>Chi Tiết Hóa Đơn</span></div><button onclick="document.getElementById('detail-bill-modal').remove()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button></div>
+          <div class="flex-1 overflow-y-auto custom-scrollbar space-y-3 font-medium text-slate-600 pr-1 text-xs">
+            <div class="text-center space-y-0.5 border-b pb-2 border-dashed"><h4 class="font-black text-slate-900 text-sm uppercase tracking-wide">BIA VƯỜN NHÀ BI</h4><p class="text-xxs text-slate-400">Mạo Khê, Đông Triều, Quảng Ninh</p></div>
+            <div class="space-y-1 font-semibold text-xxs text-slate-500 bg-slate-50 p-2 rounded-lg border"><div>• Mã hóa đơn: <span class="font-mono font-bold text-slate-700">#${inv.order_id}</span></div><div class="capitalize">• Vị trí: <span class="text-slate-700 font-bold">${inv.table_name}</span></div><div>• Thời gian: <span class="text-slate-700 font-bold">${inv.created_at ? new Date(inv.created_at).toLocaleString('vi-VN') : 'Vừa xong'}</span></div></div>
+            <div class="space-y-2"><div class="text-xxs font-bold text-slate-400 uppercase tracking-wider">Danh sách món đã dùng:</div><div class="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-0.5">${itemsHtml}</div></div>
+          </div>
+          <div class="pt-2 border-t border-dashed shrink-0 space-y-3"><div class="flex justify-between items-baseline"><span class="text-xs font-bold text-slate-800">Tổng tiền đã thu:</span><span class="font-black text-lg text-emerald-600 font-mono">${formatVND(inv.total_price)}</span></div><button onclick="document.getElementById('detail-bill-modal').remove()" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow">Đóng</button></div>
+        </div>`;
+      document.body.appendChild(billModal); lucide.createIcons(); 
+    }
+
+    function toggleSoundSystem() {
+      const btn = document.getElementById("toggle-sound-btn"); isSoundEnabled = !isSoundEnabled;
+      if (isSoundEnabled) { btn.className = "flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow transition-all duration-200"; btn.innerHTML = `<i data-lucide="volume-2" class="w-4 h-4"></i><span id="sound-status-text">Âm thanh: BẬT</span>`; } 
+      else { btn.className = "flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow transition-all duration-200"; btn.innerHTML = `<i data-lucide="volume-x" class="w-4 h-4"></i><span id="sound-status-text">Âm thanh: TẮT</span>`; }
+      lucide.createIcons();
+    }
+
+    function triggerNewOrderAlert(tableName, isUpdate) {
+      if (isSoundEnabled) {
+        try {
+          const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          const osc1 = audioCtx.createOscillator(); const gain1 = audioCtx.createGain(); osc1.connect(gain1); gain1.connect(audioCtx.destination); osc1.frequency.setValueAtTime(587.33, audioCtx.currentTime); gain1.gain.setValueAtTime(0.2, audioCtx.currentTime); gain1.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15); osc1.start(); osc1.stop(audioCtx.currentTime + 0.15);
+          setTimeout(() => { const osc2 = audioCtx.createOscillator(); const gain2 = audioCtx.createGain(); osc2.connect(gain2); gain2.connect(audioCtx.destination); osc2.frequency.setValueAtTime(880, audioCtx.currentTime); gain2.gain.setValueAtTime(0.2, audioCtx.currentTime); gain2.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3); osc2.start(); osc2.stop(audioCtx.currentTime + 0.3); }, 100);
+        } catch (e) { console.log(e); }
+      }
+      const toast = document.createElement("div"); toast.className = `fixed top-20 right-5 ${isUpdate ? 'bg-amber-600' : 'bg-emerald-600'} text-white text-xs font-bold px-4 py-3.5 rounded-xl shadow-2xl z-50 flex items-center gap-2 border border-white/20 animate-bounce`;
+      toast.innerHTML = `<span style="font-size: 16px;">🔔</span><div><span class="capitalize font-black">[BÀN ${tableName.toUpperCase()}]</span> <span>${isUpdate ? 'vừa gọi thêm món!' : 'vừa mở bàn mới!'}</span></div>`;
+      document.body.appendChild(toast); setTimeout(() => { toast.remove(); }, 5000);
+    }
+
+    function triggerBeerAlert(tableName, addedQty) {
+      if (isSoundEnabled) {
+        try {
+          const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          [0, 0.15, 0.3].forEach((timeOffset) => { setTimeout(() => { const osc = audioCtx.createOscillator(); const gain = applicationCtx = audioCtx.createGain(); osc.connect(gain); gain.connect(audioCtx.destination); osc.frequency.setValueAtTime(1046.50, audioCtx.currentTime); gain.gain.setValueAtTime(0.2, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1); osc.start(); osc.stop(audioCtx.currentTime + 0.1); }, timeOffset * 1000); });
+        } catch (e) { console.log(e); }
+      }
+      const toast = document.createElement("div"); toast.className = `fixed top-36 right-5 bg-amber-400 text-slate-900 font-black px-6 py-4 rounded-2xl shadow-xl z-[60] flex items-center gap-4 border-4 border-white animate-bounce`;
+      toast.innerHTML = `<span style="font-size: 32px;">🍻</span><div><div class="text-xs uppercase opacity-80">BÀN ${tableName.toUpperCase()}</div><div class="text-xl">+${addedQty} BIA NHÉ!</div></div>`;
+      document.body.appendChild(toast); setTimeout(() => { toast.remove(); }, 6000);
+    }
+
+    async function submitQuickBeerFromMobile(beerId, beerName) {
+      if (!selectedPosTable) { alert("Vui lòng chạm chọn 1 BÀN ở sơ đồ phía trước!"); return; }
+      
+      isSyncing = true; 
+
+      const table = tablesState[selectedPosTable]; const beerDish = menuItemsMap.get(beerId);
+      if (!beerDish) { isSyncing = false; return; }
+      
+      if (table.status === 'empty' || !table.currentOrder) {
+        table.status = 'occupied';
+        table.currentOrder = {
+          order_id: generateId(), table_name: selectedPosTable, note: "", total_qty: 1, total_price: beerDish.price, created_at: new Date().toISOString(),
+          items: [{ item_id: beerId, item_name: beerName, qty: 1, unit_price: beerDish.price, line_total: beerDish.price, status: 'pending' }]
+        };
+      } else {
+        const existingOrder = table.currentOrder; if(!existingOrder.items) existingOrder.items = [];
+        const matchItem = existingOrder.items.find(i => i.item_id === beerId && i.status === 'pending');
+        if (matchItem) { matchItem.qty += 1; matchItem.line_total = matchItem.qty * matchItem.unit_price; } 
+        else { existingOrder.items.push({ item_id: beerId, item_name: beerName, qty: 1, unit_price: beerDish.price, line_total: beerDish.price, status: 'pending' }); }
+        existingOrder.total_qty += 1; existingOrder.total_price += beerDish.price;
+      }
+      
+      syncState('tables');
+      updatePosBillPanel();
+      
+      const toast = document.createElement("div"); toast.className = "fixed top-5 left-1/2 -translate-x-1/2 bg-amber-500 text-slate-900 text-xs font-black px-4 py-2 rounded-full shadow-lg z-[110]";
+      toast.innerText = `+1 ${beerName} -> Bàn ${selectedPosTable.toUpperCase()}`; document.body.appendChild(toast); setTimeout(() => toast.remove(), 800);
+      
+      await sendDataToSheets("save_order", { data: table.currentOrder });
+    }
+  </script>
